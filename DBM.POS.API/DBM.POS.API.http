@@ -1,0 +1,6 @@
+@DBM.POS.API_HostAddress = http://localhost:5151
+
+GET {{DBM.POS.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

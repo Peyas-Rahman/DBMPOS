@@ -1,0 +1,40 @@
+using System.Security.Claims;
+using DBM.POS.API.Services;
+using DBM.POS.Domain.Entities;
+using DBM.POS.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+namespace DBM.POS.API.Controllers;
+[ApiController,Authorize,Route("api/customers")]
+public class CustomerController:ControllerBase
+{
+ private readonly POSDbContext _db; private readonly LedgerService _ledger; public CustomerController(POSDbContext db,LedgerService ledger){_db=db;_ledger=ledger;} private Guid CompanyId=>Guid.Parse(User.FindFirstValue("companyId")!); private Guid? UserId=>Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier),out var id)?id:(Guid?)null;
+ [HttpGet] public async Task<IActionResult> GetAll([FromQuery]string? search,[FromQuery]bool? active){var q=_db.Customers.AsNoTracking().Where(x=>x.CompanyId==CompanyId); if(active.HasValue)q=q.Where(x=>x.IsActive==active); if(!string.IsNullOrWhiteSpace(search))q=q.Where(x=>x.CustomerCode.Contains(search)||x.CustomerName.Contains(search)||(x.Phone!=null&&x.Phone.Contains(search))); return Ok(await q.OrderBy(x=>x.CustomerName).Select(x=>new{x.Id,x.CustomerCode,x.CustomerName,x.Phone,x.Email,x.Address,x.CreditLimit,x.CreditDays,x.DiscountPercent,x.OpeningDue,CurrentDue=_db.CustomerLedgers.Where(l=>l.CompanyId==CompanyId&&l.CustomerId==x.Id).OrderByDescending(l=>l.TransactionDate).ThenByDescending(l=>l.CreatedAt).Select(l=>(decimal?)l.Balance).FirstOrDefault()??x.OpeningDue,x.IsActive}).ToListAsync());}
+ [HttpGet("{id:guid}")] public async Task<IActionResult> Get(Guid id){var c=await _db.Customers.AsNoTracking().FirstOrDefaultAsync(x=>x.CompanyId==CompanyId&&x.Id==id); if(c==null)return NotFound(); var due=await _ledger.CustomerBalance(CompanyId,id); return Ok(new{c.Id,c.CustomerCode,c.CustomerName,c.Phone,c.Email,c.Address,c.ContactPerson,c.NID,c.City,c.District,c.PostalCode,c.CustomerType,c.CreditLimit,c.CreditDays,c.DiscountPercent,c.OpeningDue,c.Notes,c.IsActive,currentDue=due,availableCredit=Math.Max(0,c.CreditLimit-due)});}
+ [HttpPost] public async Task<IActionResult> Create(RequestDto r){if(string.IsNullOrWhiteSpace(r.Code)||string.IsNullOrWhiteSpace(r.Name))return BadRequest(new{message="Code and name are required."}); if(await _db.Customers.AnyAsync(x=>x.CompanyId==CompanyId&&x.CustomerCode==r.Code))return Conflict(new{message="Customer code exists."}); if(r.CreditLimit<0||r.OpeningDue<0)return BadRequest(new{message="Credit limit/opening due cannot be negative."});if(r.DiscountPercent<0||r.DiscountPercent>100)return BadRequest(new{message="Membership discount must be between 0 and 100 percent."}); var c=new Customer{CompanyId=CompanyId,CustomerCode=r.Code.Trim(),CustomerName=r.Name.Trim(),Phone=r.Phone,Email=r.Email,Address=r.Address,ContactPerson=r.ContactPerson,NID=r.NID,City=r.City,District=r.District,PostalCode=r.PostalCode,CustomerType=r.CustomerType,CreditLimit=r.CreditLimit,CreditDays=r.CreditDays,DiscountPercent=r.DiscountPercent,OpeningDue=r.OpeningDue,Notes=r.Notes}; _db.Customers.Add(c); await _db.SaveChangesAsync(); if(c.OpeningDue>0){await _ledger.AddCustomer(CompanyId,c.Id,null,"Opening",c.Id,c.CustomerCode,c.OpeningDue,0,"Opening due",UserId);await _db.SaveChangesAsync();} return Ok(c);}
+ [HttpPut("{id:guid}")] public async Task<IActionResult> Update(Guid id,RequestDto r){var c=await _db.Customers.FirstOrDefaultAsync(x=>x.CompanyId==CompanyId&&x.Id==id); if(c==null)return NotFound(); if(await _db.Customers.AnyAsync(x=>x.CompanyId==CompanyId&&x.CustomerCode==r.Code&&x.Id!=id))return Conflict(new{message="Customer code exists."});if(r.DiscountPercent<0||r.DiscountPercent>100)return BadRequest(new{message="Membership discount must be between 0 and 100 percent."}); c.CustomerCode=r.Code.Trim();c.CustomerName=r.Name.Trim();c.Phone=r.Phone;c.Email=r.Email;c.Address=r.Address;c.ContactPerson=r.ContactPerson;c.NID=r.NID;c.City=r.City;c.District=r.District;c.PostalCode=r.PostalCode;c.CustomerType=r.CustomerType;c.CreditLimit=r.CreditLimit;c.CreditDays=r.CreditDays;c.DiscountPercent=r.DiscountPercent;c.Notes=r.Notes;c.UpdatedAt=DateTime.UtcNow;await _db.SaveChangesAsync();return Ok(c);}
+ [HttpPatch("{id:guid}/status")] public async Task<IActionResult> Status(Guid id,[FromBody]StatusRequest r){var c=await _db.Customers.FirstOrDefaultAsync(x=>x.CompanyId==CompanyId&&x.Id==id);if(c==null)return NotFound();c.IsActive=r.IsActive;c.UpdatedAt=DateTime.UtcNow;await _db.SaveChangesAsync();return Ok(new{message="Customer status updated",c.IsActive});}
+ [HttpDelete("{id:guid}")] public async Task<IActionResult> Delete(Guid id){var c=await _db.Customers.FirstOrDefaultAsync(x=>x.CompanyId==CompanyId&&x.Id==id);if(c==null)return NotFound();var due=await _ledger.CustomerBalance(CompanyId,id);if(due>0)return Conflict(new{message="Customer has outstanding due; settle it before deactivation."});c.IsActive=false;c.UpdatedAt=DateTime.UtcNow;await _db.SaveChangesAsync();return Ok(new{message="Customer deactivated"});}
+ [HttpGet("{id:guid}/ledger")] public async Task<IActionResult> Ledger(Guid id){return Ok(await _db.CustomerLedgers.AsNoTracking().Where(x=>x.CompanyId==CompanyId&&x.CustomerId==id).OrderBy(x=>x.TransactionDate).ThenBy(x=>x.CreatedAt).Select(x=>new{x.Id,x.TransactionDate,x.TransactionType,x.ReferenceNo,x.Debit,x.Credit,x.Balance,x.Description}).ToListAsync());}
+ [HttpGet("{id:guid}/sales")] public async Task<IActionResult> Sales(Guid id){return Ok(await _db.Sales.AsNoTracking().Where(x=>x.CompanyId==CompanyId&&x.CustomerId==id).OrderByDescending(x=>x.SaleDate).Select(x=>new{x.Id,x.InvoiceNo,x.SaleDate,x.GrandTotal,x.PaidAmount,x.DueAmount,x.PaymentStatus}).ToListAsync());}
+ [HttpGet("{id:guid}/payments")] public async Task<IActionResult> Payments(Guid id){return Ok(await _db.CustomerLedgers.AsNoTracking().Where(x=>x.CompanyId==CompanyId&&x.CustomerId==id&&x.TransactionType=="Payment").OrderByDescending(x=>x.TransactionDate).Select(x=>new{x.Id,x.TransactionDate,x.ReferenceNo,amount=x.Credit,x.Description}).ToListAsync());}
+ [HttpGet("{id:guid}/due")] public async Task<IActionResult> Due(Guid id){var c=await _db.Customers.AsNoTracking().FirstOrDefaultAsync(x=>x.CompanyId==CompanyId&&x.Id==id);if(c==null)return NotFound();var due=await _ledger.CustomerBalance(CompanyId,id);return Ok(new{customerId=id,c.CreditLimit,currentDue=due,availableCredit=Math.Max(0,c.CreditLimit-due)});}
+ [HttpPost("{id:guid}/payments")]
+ public async Task<IActionResult> Payment(Guid id,PaymentRequest r)
+ {
+	 if(r.Amount<=0)return BadRequest(new{message="Amount must be greater than zero."});
+	 var customer=await _db.Customers.FirstOrDefaultAsync(x=>x.CompanyId==CompanyId&&x.Id==id&&x.IsActive);
+	 if(customer==null)return NotFound();
+	 if(r.BranchId.HasValue&&!await _db.Branches.AnyAsync(x=>x.Id==r.BranchId.Value&&x.CompanyId==CompanyId&&x.IsActive))
+		 return BadRequest(new{message="Invalid branch."});
+	 var due=await _ledger.CustomerBalance(CompanyId,id);
+	 if(r.Amount>due)return BadRequest(new{message=$"Payment exceeds due. Current due: {due}"});
+	 var method=string.IsNullOrWhiteSpace(r.PaymentMethod)?"Cash":r.PaymentMethod.Trim();
+	 var description=string.IsNullOrWhiteSpace(r.Notes)?$"Payment via {method}":$"Payment via {method}: {r.Notes.Trim()}";
+	 await _ledger.AddCustomer(CompanyId,id,r.BranchId,"Payment",null,r.ReferenceNo,0,r.Amount,description,UserId);
+	 await _db.SaveChangesAsync();
+	 return Ok(new{message="Customer payment recorded",amount=r.Amount,currentDue=due-r.Amount,paymentMethod=method,referenceNo=r.ReferenceNo});
+ }
+ public record RequestDto(string Code,string Name,string? Phone=null,string? Email=null,string? Address=null,decimal CreditLimit=0,decimal OpeningDue=0,string? ContactPerson=null,string? NID=null,string? City=null,string? District=null,string? PostalCode=null,string? CustomerType=null,int CreditDays=0,decimal DiscountPercent=0,string? Notes=null); public record StatusRequest(bool IsActive); public record PaymentRequest(decimal Amount,string PaymentMethod="Cash",string? ReferenceNo=null,string? Notes=null,Guid? BranchId=null);
+}

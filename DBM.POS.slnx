@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="DBM.POS.API/DBM.POS.API.csproj" />
+  <Project Path="DBM.POS.Domain/DBM.POS.Domain.csproj" />
+  <Project Path="DBM.POS.Infrastructure/DBM.POS.Infrastructure.csproj" />
+  <Project Path="DBM.POS.SyncService/DBM.POS.SyncService.csproj" />
+</Solution>

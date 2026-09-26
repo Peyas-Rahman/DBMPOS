@@ -1,0 +1,8 @@
+import{useEffect,useState}from"react";import{money}from"../utils";
+export function Page({title,eyebrow="DBM POS",children,action}){return <><div className="pagehead"><div><small>{eyebrow}</small><h1>{title}</h1></div>{action}</div>{children}</>}
+export function Panel({title,children,tools}){return <section className="panel"><div className="paneltitle"><h2>{title}</h2>{tools}</div>{children}</section>}
+export function Table({columns,rows,empty="No records found"}){return <div className="tablewrap"><table><thead><tr>{columns.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id||i}>{columns.map(c=><td key={c.key}>{c.render?c.render(r):r[c.key]}</td>)}</tr>):<tr><td colSpan={columns.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
+export function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
+export function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
+export function useLoad(fn,deps=[]){const[d,setD]=useState([]),[loading,setL]=useState(true),[error,setE]=useState("");useEffect(()=>{let ok=true;setL(true);fn().then(x=>ok&&setD(x||[])).catch(e=>ok&&setE(e.response?.data?.message||e.message)).finally(()=>ok&&setL(false));return()=>{ok=false}},deps);return{data:d,setData:setD,loading,error}}
+export const Money=({v})=>money(v);
