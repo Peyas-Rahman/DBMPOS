@@ -7,7 +7,7 @@ export const menu=[
 {label:"Subscriptions",children:[{label:"New Subscription",path:"/workspace/subscriptions/new"},{label:"Subscriptions",path:"/workspace/subscriptions"}]},
 {label:"Credit Notes",path:"/workspace/credit-notes"}]},
 {label:"Stock",icon:"▤",children:[
-{label:"Items Manager",children:[{label:"New Product",path:"/products/new"},{label:"Manage Products",path:"/products"}]},
+{label:"Items Manager",children:[{label:"New Product",path:"/products/new"},{label:"Manage Products",path:"/products"},{label:"Product Attributes",path:"/products/attributes"}]},
 {label:"Product Categories",path:"/masters/categories"},{label:"Stock Inventory",path:"/inventory"},{label:"Stock Adjustment",path:"/inventory?mode=adjust"},{label:"Branches",path:"/organization/branches"},{label:"Warehouses",path:"/organization/warehouses"},{label:"Stock Transfer",path:"/transfers"},
 {label:"Purchase Order",children:[{label:"New Order",path:"/purchases/new"},{label:"Manage Orders",path:"/purchases"}]},
 {label:"Stock Return",children:[{label:"Sales Return",path:"/returns/customers"},{label:"Suppliers Records",path:"/returns/suppliers"}]},

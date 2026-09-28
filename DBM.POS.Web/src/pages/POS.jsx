@@ -29,6 +29,7 @@ export default function POS({ fullScreen = false }) {
   const [customerError, setCustomerError] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [variantProduct, setVariantProduct] = useState(null);
   const input = useRef();
 
   useEffect(() => {
@@ -145,7 +146,8 @@ export default function POS({ fullScreen = false }) {
     if (!query.trim()) return;
     try {
       const result = await products.barcode(query.trim());
-      if (result.type === "Product") addProduct(result.product);
+      if (result.type === "Product" && result.product.variants?.length) setVariantProduct(result.product);
+      else if (result.type === "Product") addProduct(result.product);
       else addProduct(result.variant.product, result.variant);
       setQuery("");
     } catch {
@@ -223,7 +225,7 @@ export default function POS({ fullScreen = false }) {
           <input ref={input} value={query} onChange={event => searchProducts(event.target.value)} onKeyDown={event => event.key === "Enter" && scanBarcode()} placeholder="Search product / barcode / SKU" />
           <button onClick={scanBarcode}>Scan</button>
         </div>
-        <div className="productgrid">{filteredProducts.map(product => <button className="pitem" key={product.id} onClick={() => addProduct(product)}><small>{product.productCode}</small><b>{product.productName}</b><span>{product.brand || "No brand"} · {product.unit || "Unit"}</span><strong>{money(product.salePrice)}</strong>{product.variants?.length > 0 && <em>{product.variants.length} variants</em>}</button>)}</div>
+        <div className="productgrid">{filteredProducts.map(product => <button className="pitem" key={product.id} onClick={() => product.variants?.length ? setVariantProduct(product) : addProduct(product)}><small>{product.productCode}</small><b>{product.productName}</b><span>{product.brand || "No brand"} · {product.unit || "Unit"}</span><strong>{money(product.salePrice)}</strong>{product.variants?.length > 0 && <em>{product.variants.length} variants</em>}</button>)}</div>
       </section>
       <section className="panel cart">
         <div className="paneltitle"><h2>Cart</h2><button className="textbtn" onClick={() => setCart([])}>Clear</button></div>
@@ -246,5 +248,6 @@ export default function POS({ fullScreen = false }) {
       {receipt && <section className="panel receipt"><div className="paneltitle"><h2>Invoice {receipt.invoiceNo || receipt.InvoiceNo}</h2><div><button className="smallbtn" onClick={() => downloadInvoicePdf(receipt, { customer: receipt.customer, soldBy: currentUser?.fullName, branchName: branches.find(item => item.id === branchId)?.branchName || "", warehouseName: warehouses.find(item => item.id === warehouseId)?.warehouseName || "" })}>Download PDF</button> <button className="smallbtn" onClick={printCurrentInvoice}>Print</button></div></div><div className="receiptitems"><strong>{receipt.customer?.customerName || "Walk-in Customer"}</strong><p>Sold by {currentUser?.fullName || "-"} · Total {money(receipt.grandTotal)} · Paid {money(receipt.paidAmount)} · Due {money(receipt.dueAmount)}{receipt.changeAmount > 0 ? ` · Change ${money(receipt.changeAmount)}` : ""}</p></div></section>}
     </div>
     {customerModal && <div className="modal" onMouseDown={event => event.target === event.currentTarget && setCustomerModal(false)}><div className="modalbox" role="dialog" aria-modal="true" aria-labelledby="new-customer-title"><button type="button" className="close" aria-label="Close" onClick={() => setCustomerModal(false)}>×</button><h2 id="new-customer-title">Add New Customer</h2>{customerError && <div className="error">{customerError}</div>}<form className="formgrid" onSubmit={createCustomer}><label className="field"><span>Customer code</span><input value={customerForm.Code} onChange={event => setCustomerForm({ ...customerForm, Code: event.target.value })} required /></label><label className="field"><span>Customer name</span><input autoFocus value={customerForm.Name} onChange={event => setCustomerForm({ ...customerForm, Name: event.target.value })} required /></label><label className="field"><span>Phone</span><input value={customerForm.Phone} onChange={event => setCustomerForm({ ...customerForm, Phone: event.target.value })} /></label><label className="field"><span>Email</span><input type="email" value={customerForm.Email} onChange={event => setCustomerForm({ ...customerForm, Email: event.target.value })} /></label><label className="field"><span>Address</span><input value={customerForm.Address} onChange={event => setCustomerForm({ ...customerForm, Address: event.target.value })} /></label><label className="field"><span>Opening due</span><input type="number" min="0" step="0.01" value={customerForm.OpeningDue} onChange={event => setCustomerForm({ ...customerForm, OpeningDue: Number(event.target.value) })} /></label><label className="field"><span>Membership discount %</span><input type="number" min="0" max="100" step="0.01" value={customerForm.DiscountPercent} onChange={event => setCustomerForm({ ...customerForm, DiscountPercent: Number(event.target.value) })} /></label><button className="primary" disabled={savingCustomer}>{savingCustomer ? "Saving..." : "Save and select customer"}</button></form></div></div>}
+    {variantProduct && <div className="modal" onMouseDown={event => event.target === event.currentTarget && setVariantProduct(null)}><div className="modalbox" role="dialog" aria-modal="true" aria-labelledby="size-picker-title"><button type="button" className="close" aria-label="Close" onClick={() => setVariantProduct(null)}>×</button><h2 id="size-picker-title">{variantProduct.productName} · Select size</h2><div className="size-picker">{variantProduct.variants.map(variant => <button type="button" className="smallbtn" key={variant.id} onClick={() => { addProduct(variantProduct, variant); setVariantProduct(null); }}>{variant.variantName} · {money(variant.salePrice)}</button>)}</div></div></div>}
   </Page></div>;
 }

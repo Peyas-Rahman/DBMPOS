@@ -40,6 +40,10 @@ public class PurchaseController:ControllerBase
                 if(i.Discount<0 || i.Tax<0) throw new InvalidOperationException("Discount and tax cannot be negative.");
                 var product=await _db.Products.FirstOrDefaultAsync(x=>x.Id==i.ProductId&&x.CompanyId==CompanyId&&x.IsActive);
                 if(product==null)throw new InvalidOperationException("Invalid product.");
+                var hasVariants=await _db.ProductVariants.AnyAsync(x=>x.CompanyId==CompanyId&&x.ProductId==i.ProductId&&x.IsActive);
+                if(hasVariants&&!i.VariantId.HasValue)throw new InvalidOperationException("Select a variant for this product.");
+                if(i.VariantId.HasValue&&!await _db.ProductVariants.AnyAsync(x=>x.Id==i.VariantId.Value&&x.CompanyId==CompanyId&&x.ProductId==i.ProductId&&x.IsActive))
+                    throw new InvalidOperationException("Invalid product variant.");
                 var line=(i.Quantity*i.UnitCost)-i.Discount+i.Tax;
                 p.Items.Add(new PurchaseItem{ProductId=i.ProductId,VariantId=i.VariantId,Quantity=i.Quantity,UnitCost=i.UnitCost,Discount=i.Discount,Tax=i.Tax,LineTotal=line});
             }

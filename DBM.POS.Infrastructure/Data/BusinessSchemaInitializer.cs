@@ -104,5 +104,6 @@ FROM Purchases p INNER JOIN Suppliers s ON s.Id=p.SupplierId
 WHERE p.DueAmount>0 AND NOT EXISTS(SELECT 1 FROM SupplierLedgers l WHERE l.ReferenceId=p.Id AND l.TransactionType='Purchase');"
         };
         foreach(var command in sql) await db.Database.ExecuteSqlRawAsync(command);
+        await db.Database.ExecuteSqlRawAsync(@"IF COL_LENGTH(N'[ProductAttributes]', N'DefaultValues') IS NULL ALTER TABLE [ProductAttributes] ADD [DefaultValues] nvarchar(1000) NOT NULL CONSTRAINT [DF_ProductAttributes_DefaultValues] DEFAULT N'';");
     }
 }

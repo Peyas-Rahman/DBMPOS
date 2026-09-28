@@ -3,7 +3,7 @@ import { purchases, org, suppliers, products } from "../api";
 import { Page, Panel, Table, Field, Select } from "../components/common";
 import { money } from "../utils";
 
-const emptyItem = { productId: "", quantity: 1, unitCost: 0 };
+const emptyItem = { productId: "", variantId: "", quantity: 1, unitCost: 0 };
 
 export default function Purchases() {
   const [history, setHistory] = useState([]);
@@ -31,10 +31,12 @@ export default function Purchases() {
   const subtotal = form.items.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unitCost || 0), 0);
   const paidAmount = Number(form.paidAmount || 0);
   const dueAmount = Math.max(0, subtotal - paidAmount);
+  const selectedProduct = productList.find(product => product.id === item.productId);
 
   function addItem() {
     if (!item.productId || Number(item.quantity) <= 0) return setMessage("Select a product and enter a valid quantity.");
-    setForm(current => ({ ...current, items: [...current.items, { ...item, quantity: Number(item.quantity), unitCost: Number(item.unitCost) }] }));
+    if (selectedProduct?.variants?.length && !item.variantId) return setMessage("Select a size for this product.");
+    setForm(current => ({ ...current, items: [...current.items, { ...item, variantId: item.variantId || null, quantity: Number(item.quantity), unitCost: Number(item.unitCost) }] }));
     setItem(emptyItem);
     setMessage("");
   }
@@ -70,12 +72,13 @@ export default function Purchases() {
           <option value="">Select</option>{supplierList.map(supplier => <option value={supplier.id} key={supplier.id}>{supplier.supplierName}</option>)}
         </Select>
         <div className="addline">
-          <select value={item.productId} onChange={event => setItem({ ...item, productId: event.target.value })}><option value="">Product</option>{productList.map(product => <option value={product.id} key={product.id}>{product.productName}</option>)}</select>
+          <select value={item.productId} onChange={event => { const product = productList.find(entry => entry.id === event.target.value); setItem({ ...emptyItem, productId: event.target.value, unitCost: product?.costPrice || 0 }); }}><option value="">Product</option>{productList.map(product => <option value={product.id} key={product.id}>{product.productName}</option>)}</select>
+          {selectedProduct?.variants?.length > 0 && <select value={item.variantId} onChange={event => { const variant = selectedProduct.variants.find(entry => entry.id === event.target.value); setItem({ ...item, variantId: event.target.value, unitCost: variant?.costPrice ?? item.unitCost }); }}><option value="">Size</option>{selectedProduct.variants.map(variant => <option value={variant.id} key={variant.id}>{variant.variantName}</option>)}</select>}
           <input type="number" min="1" step="0.01" value={item.quantity} onChange={event => setItem({ ...item, quantity: event.target.value })} placeholder="Qty" />
           <input type="number" min="0" step="0.01" value={item.unitCost} onChange={event => setItem({ ...item, unitCost: event.target.value })} placeholder="Unit cost" />
           <button type="button" onClick={addItem}>Add</button>
         </div>
-        {form.items.map((line, index) => <div className="line" key={`${line.productId}-${index}`}><span>{productList.find(product => product.id === line.productId)?.productName || "Product"} × {line.quantity} @ {money(line.unitCost)}</span><strong>{money(Number(line.quantity) * Number(line.unitCost))}</strong><button type="button" className="smallbtn" onClick={() => removeItem(index)}>×</button></div>)}
+        {form.items.map((line, index) => { const product = productList.find(entry => entry.id === line.productId); const variant = product?.variants?.find(entry => entry.id === line.variantId); return <div className="line" key={`${line.productId}-${line.variantId || "base"}-${index}`}><span>{product?.productName || "Product"}{variant ? ` / ${variant.variantName}` : ""} × {line.quantity} @ {money(line.unitCost)}</span><strong>{money(Number(line.quantity) * Number(line.unitCost))}</strong><button type="button" className="smallbtn" onClick={() => removeItem(index)}>×</button></div>; })}
         <div className="sum"><span>Purchase total</span><b>{money(subtotal)}</b></div>
         <Field label="Paid Amount" type="number" min="0" max={subtotal} step="0.01" value={form.paidAmount} onChange={event => setForm({ ...form, paidAmount: event.target.value })} />
         <div className="sum"><span>Due</span><b>{money(dueAmount)}</b></div>

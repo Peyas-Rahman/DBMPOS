@@ -592,6 +592,7 @@ public class POSDbContext : DbContext
             e.ToTable("ProductAttributes"); e.HasKey(x => x.Id);
             e.Property(x => x.AttributeCode).HasMaxLength(50).IsRequired();
             e.Property(x => x.AttributeName).HasMaxLength(100).IsRequired();
+            e.Property(x => x.DefaultValues).HasMaxLength(1000).IsRequired();
             e.HasIndex(x => new { x.CompanyId, x.AttributeCode }).IsUnique();
             e.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         });

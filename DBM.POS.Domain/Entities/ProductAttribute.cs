@@ -5,6 +5,7 @@ public class ProductAttribute : BaseEntity
     public Guid CompanyId { get; set; }
     public string AttributeCode { get; set; } = null!;
     public string AttributeName { get; set; } = null!;
+    public string DefaultValues { get; set; } = "";
     public Company Company { get; set; } = null!;
     public ICollection<ProductAttributeValue> Values { get; set; } = new List<ProductAttributeValue>();
 }
